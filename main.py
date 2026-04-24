@@ -67,7 +67,7 @@ def sendpopup(key: str = "", message: str = ""):
     def show_async_popup(message, username):
         root = tk.Tk()
         root.withdraw()
-        root.attributes("-topmost", True) 
+        root.attributes("-topmost", True)
         messagebox.showinfo(f"Popup from {username}", message)
         root.destroy()
     user_data: dict = check_access(key)
