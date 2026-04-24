@@ -2,7 +2,6 @@ import secrets
 import json
 import sys
 import os
-from types import SimpleNamespace
 
 if os.path.exists("keys.json"):
     with open("keys.json") as f:

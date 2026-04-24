@@ -1,8 +1,13 @@
-from fastapi import FastAPI, Response, HTTPException, status
-from colorama import init, Fore, Style
+from fastapi import FastAPI, HTTPException
+from colorama import Fore
 import json
 import uvicorn
 import os
+import tkinter as tk
+from tkinter import messagebox
+import threading
+import platform
+import pyttsx3
 
 app = FastAPI(docs_url=None)
 
@@ -56,6 +61,43 @@ def readfile(root: str = "", name: str = "", key: str = "") -> dict:
         for line in f:
             data.append(line)
     return {"detail": ''.join(data)}
+
+@app.get("/sendpopup")
+def sendpopup(key: str = "", message: str = ""):
+    def show_async_popup(message, username):
+        root = tk.Tk()
+        root.withdraw()
+        root.attributes("-topmost", True) 
+        messagebox.showinfo(f"Popup from {username}", message)
+        root.destroy()
+    user_data: dict = check_access(key)
+    threading.Thread(target=show_async_popup, args=(message,user_data["User"]), daemon=True).start()
+    
+    return {"detail": "Popup trigger sent"}
+
+@app.get("/lock")
+def lock(key: str = ""):
+    user_data: dict = check_access(key)
+    system = platform.system()
+    if system == "Windows":
+        import ctypes
+        ctypes.windll.user32.LockWorkStation()
+    elif system == "Darwin":
+        os.system("pmset displaysleepnow")
+    elif system == "Linux":
+        os.system("xdg-screensaver lock") 
+    return {"detail": "Logout Successfull"}
+
+@app.get("/tts")
+def tts(key: str = "", message: str = ""):
+    def send_async_popup(message, username):
+        engine = pyttsx3.init()
+        engine.say(f"Message from {username}: {message}")
+        engine.runAndWait()
+    user_data: dict = check_access(key)
+    threading.Thread(target=send_async_popup, args=(message,user_data["User"]), daemon=True).start()
+
+    return {"detail": "Message Successfully Sent"}
 
 @app.get("/me")
 def me(key: str = "") -> dict:

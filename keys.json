@@ -1,0 +1,8 @@
+{
+    "PGOLmdOuRa5yvfeoqy1krXMhf233yIysyGwAnhpGzyY": {
+        "User": "Example User",
+        "Email": "example@example.com",
+        "limit": 100,
+        "requests": 5
+    }
+}
