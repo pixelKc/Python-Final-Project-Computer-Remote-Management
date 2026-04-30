@@ -12,7 +12,14 @@ localhost:8000/newfile/{root (desktop or downloads)}/{filename}?key={apikey}&dat
 ### /readfile
 Reads the data of a file (Limited to .txt extension, only Desktop and Downloads folders are allowed for security)
 #### Usage
-localhost:8000/readfile/{root (desktop or downloads)}/{filename}?key={apikey}
+### /deletefile
+Deletes a file (Limited to .txt extension, only Desktop and Downloads folders are allowed for security)
+#### Usage
+localhost:8000/deletefile/{root (desktop or downloads)}/{filename}?key={apikey}
+### /listfiles
+Lists the files in a directory (only Desktop and Downloads folders are allowed for security)
+#### Usage
+localhost:8000/deletefile/{root (desktop or downloads)}?key={apikey}
 ### /sendpopup
 Sends a popup to the server
 #### Usage

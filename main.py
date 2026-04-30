@@ -8,16 +8,53 @@ from tkinter import messagebox
 import threading
 import platform
 import pyttsx3
+from pathlib import Path
+import logging
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+from starlette.responses import Response
+import time
 
-app = FastAPI(docs_url=None)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('api.log'),
+        logging.StreamHandler()
+    ]
+)
 
-keys: dict
+logger = logging.getLogger(__name__)
+
+keys: dict[str, dict[str, str | None | int]]
 if os.path.exists("keys.json"):
     with open("keys.json") as f:
         keys = json.loads(f.read())
 else:
     keys = {}
     print(f"{Fore.YELLOW}WARNING{Fore.RESET}: keys.json does not exist, using empty object")
+
+class LoggingMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        start_time = time.time()
+        
+        logger.info(f"REQUEST: {request.url.path} | Client: {keys.get(request.query_params.get('key', ''), {'User': 'unknown'})['User']}")
+        
+        try:
+            response = await call_next(request)
+            
+            duration = time.time() - start_time
+            logger.info(f"RESPONSE: {request.url.path} | Status: {response.status_code} | Duration: {duration:.3f}s")
+            
+            return response
+        except Exception as e:
+            duration = time.time() - start_time
+            logger.error(f"ERROR: {request.method} {request.url.path} | Status: 500 | Duration: {duration:.3f}s | Error: {str(e)}")
+            raise
+
+app = FastAPI(docs_url=None)
+app.add_middleware(LoggingMiddleware)
+file_lock = threading.Lock()
 
 def check_access(key: str) -> dict:
     if not key or key not in keys:
@@ -29,12 +66,13 @@ def check_access(key: str) -> dict:
     
     data["requests"] += 1
     
-    with open("keys.json", 'w') as f:
-        json.dump(keys, f, indent=4)
+    with file_lock:
+        with open("keys.json", 'w') as f:
+            json.dump(keys, f, indent=4)
         
     return data
 
-valid_roots = {"desktop": "/Users/KCKan/Desktop", "downloads": "/Users/KCKan/Downloads"}
+valid_roots: dict[str, Path] = {"desktop": Path.home() / "Desktop", "downloads": Path.home() / "Downloads"}
 
 @app.get("/")
 def root():
@@ -44,8 +82,9 @@ def root():
 def newfile(root: str = "", name: str = "", key: str = "", data: str = "") -> dict:
     user_data: dict = check_access(key)
     if not root in valid_roots:
-        return {"detail": f"Error: {root} is not valid root"}
-    with open(f"{valid_roots[root]}/{name}.txt", 'w') as f:
+        raise HTTPException(status_code=400, detail=f"Error: {root} is not valid root")
+    file_path: Path = valid_roots[root] / f"{key} {name}.txt"
+    with open(file_path, 'w') as f:
         f.write(data)
     return {"detail": f"Wrote {data} to {name}.txt"}
 
@@ -53,14 +92,39 @@ def newfile(root: str = "", name: str = "", key: str = "", data: str = "") -> di
 def readfile(root: str = "", name: str = "", key: str = "") -> dict:
     user_data: dict = check_access(key)
     if not root in valid_roots:
-        return {"detail": f"Error: {root} is not valid root"}
-    if not os.path.exists(f"{valid_roots[root]}/{name}.txt"):
-        return {"detail": f"Error: {name}.txt was not found"}
-    with open(f"{valid_roots[root]}/{name}.txt") as f:
+        raise HTTPException(status_code=400, detail=f"Error: {root} is not valid root")
+    file_path: Path = valid_roots[root] / f"{key} {name}.txt"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Error: {name}.txt was not found")
+    with open(file_path) as f:
         data: list = []
         for line in f:
             data.append(line)
     return {"detail": ''.join(data)}
+
+@app.get("/deletefile/{root}/{name}")
+def deletefile(root: str = "", name: str = "", key: str = ""):
+    user_data: dict = check_access(key)
+    if not root in valid_roots:
+        raise HTTPException(status_code=400, detail=f"Error: {root} is not valid root")
+    file_path: Path = valid_roots[root] / f"{key} {name}.txt"
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"Error: {name}.txt was not found")
+    os.remove(file_path)
+    return {"detail": "File removed successfully"}
+
+@app.get("/listfiles/{root}")
+def listfiles(root: str = "", key: str = ""):
+    user_data: dict = check_access(key)
+    if not root in valid_roots:
+        raise HTTPException(status_code=400, detail=f"Error: {root} is not valid root")
+    folder_path: Path = valid_roots[root]
+    files: list[str] = os.listdir(folder_path)
+    returnlist = []
+    for filename in files:
+        if filename.startswith(f"{key} "):
+            returnlist.append(filename.replace(f"{key} ", ""))
+    return {"detail": returnlist}
 
 @app.get("/sendpopup")
 def sendpopup(key: str = "", message: str = ""):
@@ -86,7 +150,7 @@ def lock(key: str = ""):
         os.system("pmset displaysleepnow")
     elif system == "Linux":
         os.system("xdg-screensaver lock") 
-    return {"detail": "Logout Successfull"}
+    return {"detail": "Logout Successful"}
 
 @app.get("/tts")
 def tts(key: str = "", message: str = ""):
@@ -105,4 +169,10 @@ def me(key: str = "") -> dict:
     return {"detail": user_data}
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(
+        app, 
+        host="127.0.0.1", 
+        port=8000,
+        log_level="critical",
+        access_log=False
+    )
