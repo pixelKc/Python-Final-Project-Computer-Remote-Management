@@ -14,6 +14,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response
 import time
+import webbrowser
+import pyautogui
 
 logging.basicConfig(
     level=logging.INFO,
@@ -163,12 +165,42 @@ def tts(key: str = "", message: str = ""):
 
     return {"detail": "Message Successfully Sent"}
 
+@app.get("/volumeup")
+def volumeup(key: str = "", amount: int = 0):
+    user_data = check_access(key)
+    for i in range(amount // 2):
+        pyautogui.press("volumeup")
+
+    return {"detail": f"Volume successfully increased by {amount}"}
+
+@app.get("/volumedown")
+def volumedown(key: str = "", amount: int = 0):
+    user_data = check_access(key)
+    for i in range(amount // 2):
+        pyautogui.press("volumedown")
+    
+    return {"detail": f"Volume successfully decreased by {amount}"}
+
+@app.get("/mute")
+def mute(key: str = ""):
+    user_data = check_access(key)
+    pyautogui.press("volumemute")
+    
+    return {"detail": "Mute toggled"}
+
+@app.get("/open")
+def open_page(key: str = "", url: str = ""):
+    user_data: dict = check_access(key)
+    webbrowser.open(f"http://{url}")
+    return {"detail": f"{url} Successfully opened"}
+
 @app.get("/me")
 def me(key: str = "") -> dict:
     user_data: dict = check_access(key)
     return {"detail": user_data}
 
 if __name__ == "__main__":
+    print(f"{Fore.CYAN}--- REMOTE CONTROL API ---{Fore.RESET}")
     uvicorn.run(
         app, 
         host="127.0.0.1", 
